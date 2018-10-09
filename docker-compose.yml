@@ -1,0 +1,64 @@
+version: '3'
+services:
+    alaveteli:
+        build: 
+            context: ../alaveteli
+            dockerfile: Dockerfile.test
+        volumes:
+            - ./data/alaveteli:/data/alaveteli
+            - ./logs/alaveteli:/opt/alaveteli/log
+            - ./sockets:/sockets
+        env_file:
+            - .env-alaveteli
+        depends_on:
+            - db
+            - http
+            - mail-out
+    db:
+        image: "postgres:9.4"
+        environment:
+            - POSTGRES_PASSWORD=alaveteli
+            - POSTGRES_USER=alaveteli
+        ports:
+            - "5432:5432"
+    http:
+        image: nginx
+        volumes:
+            - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./data/alaveteli/public:/data/alaveteli/public
+            - ./sockets:/sockets
+        ports:
+            - "80:80"
+    alaveteli-sidekiq:
+        build:
+            context: ../alaveteli-sidekiq-docker
+            args:
+                - SK_REPO_OWNER
+                - SK_REPO_BRANCH
+        volumes:
+            - ./data/alaveteli:/data/alaveteli
+            - ./logs/alaveteli-sidekiq:/opt/alaveteli/log
+            - ./sockets:/sockets
+        env_file:
+            - .env-alaveteli
+        depends_on:
+            - db
+    mail:
+        build: ../docker-postfix
+        volumes:
+            - ./logs/postfix/mail.err:/var/log/mail.err:rw
+            - ./logs/postfix/mail.log:/var/log/mail.log:rw
+        env_file:
+            - .env-mail
+        environment:
+            - alaveteli_user=fyi
+            - pipescript=mailin.sh
+        depends_on:
+            - alaveteli-sidekiq
+            - db 
+        ports:
+            - "25:25"
+    mail-out:
+        image: "catatnight/postfix"
+        env_file:
+            - .env-mailout

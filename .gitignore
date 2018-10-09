@@ -1,0 +1,5 @@
+.env-*
+data/
+sockets/
+config/
+logs/
